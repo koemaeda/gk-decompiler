@@ -9,10 +9,13 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
+import javax.swing.UIManager;
+
 import java.awt.Font;
 import java.awt.dnd.DropTarget;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -27,6 +30,7 @@ import ninja.abap.gkdecompiler.Kitchen;
 import ninja.abap.gkdecompiler.Potato;
 
 import javax.swing.JTabbedPane;
+
 import java.awt.BorderLayout;
 import javax.swing.JTextArea;
 import javax.swing.JScrollPane;
@@ -43,16 +47,15 @@ public class OhMyGod {
 
 	private JFrame frame;
 
-	private static final String abapNinjaText = "<html><pre>" //
+	private static final String abapNinjaText = "" //
 			+ "   ____ _/ /_  ____ _____    ____  (_)___    (_)___ _\r\n"
 			+ "  / __ `/ __ \\/ __ `/ __ \\  / __ \\/ / __ \\  / / __ `/\r\n"
 			+ " / /_/ / /_/ / /_/ / /_/ / / / / / / / / / / / /_/ / \r\n"
 			+ " \\__,_/_.___/\\__,_/ .___(_)_/ /_/_/_/ /_/_/ /\\__,_/  \r\n"
-			+ "                 /_/                   /___/         " //
-			+ "</pre></html>";
-
+			+ "                 /_/                   /___/         ";
+	
 	private static final String appName = "GK Decompiler";
-	private static final String appVersion = "v1.0";
+	private static final String appVersion = "v1.1";
 
 	private JProgressBar progressBar;
 	private JTextArea textExtractIncludeRegex;
@@ -67,10 +70,18 @@ public class OhMyGod {
 		EventQueue.invokeLater(new Runnable() {
 			public void run() {
 				try {
+					// Choose the appropriate OK-specific Swing look-and-feel
+					Optional<String> lnfClass = Arrays.stream(UIManager.getInstalledLookAndFeels())
+							.filter(e -> e.getName().matches(".*(Windows|Macintosh|GTK).*")).map(e -> e.getClassName())
+							.findFirst();
+					if (lnfClass.isPresent())
+						UIManager.setLookAndFeel(lnfClass.get());
+
 					OhMyGod window = new OhMyGod();
 					window.frame.setVisible(true);
 				} catch (Exception e) {
 					e.printStackTrace();
+					JOptionPane.showMessageDialog(null, e, "Error", JOptionPane.ERROR_MESSAGE);
 				}
 			}
 		});
@@ -140,6 +151,7 @@ public class OhMyGod {
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
 		JTabbedPane tabPane = new JTabbedPane(JTabbedPane.TOP);
+		tabPane.setBorder(new EmptyBorder(5, 5, 5, 5));
 		frame.getContentPane().add(tabPane, BorderLayout.NORTH);
 
 		tabPane.addTab("💣 Extract & Decompile", null, createMainPanel(), null);
@@ -149,7 +161,8 @@ public class OhMyGod {
 		Dimension dv = frame.getSize();
 		dv.width *= 1.3; // make it 30% wider
 		frame.setSize(dv);
-		frame.setLocationRelativeTo(null); // center on screen
+//		frame.setLocationRelativeTo(null); // center on screen
+		frame.setLocationByPlatform(true);
 	}
 
 	@SuppressWarnings("serial")
@@ -158,10 +171,7 @@ public class OhMyGod {
 		mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
 
-		JLabel lblAbapNinja = new JLabel(abapNinjaText);
-		lblAbapNinja.setAlignmentX(Component.CENTER_ALIGNMENT);
-		lblAbapNinja.setFont(new Font("Tahoma", Font.PLAIN, 12));
-		lblAbapNinja.setHorizontalAlignment(SwingConstants.CENTER);
+		JTextArea lblAbapNinja = new PeppermintLeaf(abapNinjaText);
 		mainPanel.add(lblAbapNinja);
 
 		mainPanel.add(Box.createRigidArea(new Dimension(10, 5)));
@@ -180,7 +190,7 @@ public class OhMyGod {
 
 		mainPanel.add(Box.createRigidArea(new Dimension(10, 30)));
 
-		JLabel lblDropInfo = new JLabel("👆 Drop JAR / WAR file here to extract and decompile. 👆");
+		JLabel lblDropInfo = new JLabel("👆 Drop ZIP / JAR / WAR file here to extract and decompile. 👆");
 		lblDropInfo.setAlignmentX(Component.CENTER_ALIGNMENT);
 		mainPanel.add(lblDropInfo);
 
@@ -218,21 +228,25 @@ public class OhMyGod {
 
 		optionsPanel.add(new JLabel("File extraction - ➕ Include RegEx (one per line):"));
 		this.textExtractIncludeRegex = new JTextArea(".*META-INF.+\n.*WEB-INF.+\n.+gk.+");
+		textExtractIncludeRegex.setAlignmentX(0);
 		optionsPanel.add(textExtractIncludeRegex);
 		optionsPanel.add(Box.createRigidArea(new Dimension(10, 5)));
 
 		optionsPanel.add(new JLabel("File extraction - ⛔ Exclude RegEx (one per line):"));
 		this.textExtractExcludeRegex = new JTextArea();
+		textExtractExcludeRegex.setAlignmentX(0);
 		optionsPanel.add(textExtractExcludeRegex);
 		optionsPanel.add(Box.createRigidArea(new Dimension(10, 5)));
 
 		optionsPanel.add(new JLabel("Class decompilation - ➕ Include RegEx (one per line):"));
 		this.textDecompileIncludeRegex = new JTextArea(".+gk.+");
+		textDecompileIncludeRegex.setAlignmentX(0);
 		optionsPanel.add(textDecompileIncludeRegex);
 		optionsPanel.add(Box.createRigidArea(new Dimension(10, 5)));
 
 		optionsPanel.add(new JLabel("Class decompilation - ⛔ Exclude RegEx (one per line):"));
 		this.textDecompileExcludeRegex = new JTextArea();
+		textDecompileExcludeRegex.setAlignmentX(0);
 		optionsPanel.add(textDecompileExcludeRegex);
 
 		JPanel logLevelPanel = new JPanel();
