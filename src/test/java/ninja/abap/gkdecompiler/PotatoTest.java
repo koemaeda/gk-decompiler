@@ -30,19 +30,19 @@ public class PotatoTest {
 		Potato potato = spy(new Potato(path, "dummy-destination-path"));
 		doNothing().when(potato).extractFile(any(), any());
 		doNothing().when(potato).extractClass(any(), any());
+		doNothing().when(potato).startNewLogFile();
 		doNothing().when(potato).createCsvFile();
 
 		potato.bake();
 
 		verify(potato, atLeastOnce()).extractFile(eq("META-INF/MANIFEST.MF"), notNull());
-		verify(potato, atLeastOnce()).addCsvEntry(eq("META-INF/MANIFEST.MF"), notNull(), eq(""), eq(true), eq(false));
+		verify(potato, atLeastOnce()).addCsvEntry(eq("META-INF/MANIFEST.MF"), contains("hello-world."), eq(true), eq(false));
 		verify(potato, atLeastOnce()).extractFile(eq("META-INF/ninja/abap/text/lorem-ipsum2.txt"), notNull());
 
 		verify(potato, atLeastOnce()).extractClass(eq("ninja/abap/HelloWorld1.class"), notNull());
 		verify(potato, atLeastOnce()).extractClass(eq("ninja/abap/HelloWorld2.class"), notNull());
 		verify(potato, atLeastOnce()).extractClass(eq("ninja/abap/HelloWorld3.class"), notNull());
-		verify(potato, atLeastOnce()).addCsvEntry(eq("ninja/abap/HelloWorld3.class"), notNull(),
-				eq("ninja.abap.HelloWorld3"), eq(false), eq(true));
+		verify(potato, atLeastOnce()).addCsvEntry(eq("ninja/abap/HelloWorld3.class"), contains("hello-world3."), eq(false), eq(true));
 	}
 
 }

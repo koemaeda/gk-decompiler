@@ -5,6 +5,7 @@ import java.awt.EventQueue;
 import javax.swing.JFrame;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -25,6 +26,7 @@ import java.awt.Dimension;
 
 import javax.swing.JProgressBar;
 import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import ninja.abap.gkdecompiler.Kitchen;
 import ninja.abap.gkdecompiler.Potato;
@@ -39,7 +41,10 @@ import javax.swing.JFileChooser;
 
 import java.awt.FlowLayout;
 import java.awt.dnd.DropTargetDropEvent;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.File;
+import java.nio.file.Files;
 import java.awt.dnd.DnDConstants;
 import java.awt.datatransfer.DataFlavor;
 
@@ -53,10 +58,11 @@ public class OhMyGod {
 			+ " / /_/ / /_/ / /_/ / /_/ / / / / / / / / / / / /_/ / \r\n"
 			+ " \\__,_/_.___/\\__,_/ .___(_)_/ /_/_/_/ /_/_/ /\\__,_/  \r\n"
 			+ "                 /_/                   /___/         ";
-	
-	private static final String appName = "GK Decompiler";
-	private static final String appVersion = "v1.1";
 
+	private static final String appName = "GK Decompiler";
+	private static final String appVersion = "v1.2";
+
+	private JButton bakeButton;
 	private JProgressBar progressBar;
 	private JTextArea textExtractIncludeRegex;
 	private JTextArea textExtractExcludeRegex;
@@ -94,14 +100,30 @@ public class OhMyGod {
 		initialize();
 	}
 
-	private void bake(String archivePath) {
+	private void startToBakeInSeparateThread(Optional<String> optArchivePath,
+			Optional<String> optDestinationDirectory) {
+		try {
+			final String archivePath = optArchivePath.isPresent() ? optArchivePath.get() : chooseArchivePath();
+			final String destinationDirectory = optDestinationDirectory.isPresent() ? optDestinationDirectory.get()
+					: chooseDestinationDirectory();
+			new Thread(null, () -> {
+				OhMyGod.this.bake(archivePath, destinationDirectory);
+			}, "Baked Potato!").start();
+		} catch (Exception e) {
+			e.printStackTrace();
+			JOptionPane.showMessageDialog(frame, e, "Error", JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	private void bake(String archivePath, String destinationDirectory) {
+		bakeButton.setEnabled(false);
 		progressBar.setValue(0);
 		progressBar.setString("");
 
 		try {
 			updateKitchen();
 
-			Potato potato = new Potato(archivePath, getDestinationDirectory());
+			Potato potato = new Potato(archivePath, destinationDirectory);
 			potato.onProgress((percent, text) -> {
 				progressBar.setValue(percent);
 				progressBar.setString(String.format("%d%% %s", percent, text));
@@ -114,15 +136,34 @@ public class OhMyGod {
 			e.printStackTrace();
 			JOptionPane.showMessageDialog(frame, e, "Error", JOptionPane.ERROR_MESSAGE);
 		}
+		bakeButton.setEnabled(true);
 	}
 
-	private String getDestinationDirectory() throws Exception {
+	private String chooseArchivePath() throws Exception {
+		JFileChooser fileChooser = new JFileChooser();
+		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		fileChooser.setFileFilter(new FileNameExtensionFilter("Archive (*.zip, *.jar, *.war)", "zip", "jar", "war"));
+
+		int option = fileChooser.showOpenDialog(frame);
+		if (option == JFileChooser.APPROVE_OPTION) {
+			File file = fileChooser.getSelectedFile();
+			if (!file.exists())
+				Files.createDirectories(file.toPath());
+			return file.getAbsolutePath();
+		} else {
+			throw new Exception("Action cancelled");
+		}
+	}
+
+	private String chooseDestinationDirectory() throws Exception {
 		JFileChooser fileChooser = new JFileChooser();
 		fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 
 		int option = fileChooser.showSaveDialog(frame);
 		if (option == JFileChooser.APPROVE_OPTION) {
 			File file = fileChooser.getSelectedFile();
+			if (!file.exists())
+				Files.createDirectories(file.toPath());
 			return file.getAbsolutePath();
 		} else {
 			throw new Exception("Action cancelled");
@@ -161,20 +202,19 @@ public class OhMyGod {
 		Dimension dv = frame.getSize();
 		dv.width *= 1.3; // make it 30% wider
 		frame.setSize(dv);
-//		frame.setLocationRelativeTo(null); // center on screen
 		frame.setLocationByPlatform(true);
 	}
 
-	@SuppressWarnings("serial")
 	private JPanel createMainPanel() {
 		JPanel mainPanel = new JPanel();
 		mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
 
 		JTextArea lblAbapNinja = new PeppermintLeaf(abapNinjaText);
+		acceptBombDrops(lblAbapNinja);
 		mainPanel.add(lblAbapNinja);
 
-		mainPanel.add(Box.createRigidArea(new Dimension(10, 5)));
+		mainPanel.add(Box.createRigidArea(new Dimension(5, 5)));
 
 		JLabel lblAppName = new JLabel(appName);
 		lblAppName.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -188,37 +228,53 @@ public class OhMyGod {
 		lblAppVersion.setFont(new Font("Tahoma", Font.BOLD, 12));
 		mainPanel.add(lblAppVersion);
 
-		mainPanel.add(Box.createRigidArea(new Dimension(10, 30)));
+		mainPanel.add(Box.createRigidArea(new Dimension(30, 30)));
+
+		this.bakeButton = new JButton("Choose archive...");
+		bakeButton.setBorder(new EmptyBorder(5, 30, 5, 30));
+		bakeButton.setAlignmentX(0.5f);
+		bakeButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				startToBakeInSeparateThread(Optional.empty(), Optional.empty());
+			}
+		});
+		mainPanel.add(bakeButton);
+
+		mainPanel.add(Box.createRigidArea(new Dimension(10, 10)));
 
 		JLabel lblDropInfo = new JLabel("👆 Drop ZIP / JAR / WAR file here to extract and decompile. 👆");
 		lblDropInfo.setAlignmentX(Component.CENTER_ALIGNMENT);
 		mainPanel.add(lblDropInfo);
 
-		mainPanel.add(Box.createRigidArea(new Dimension(10, 30)));
+		mainPanel.add(Box.createRigidArea(new Dimension(10, 25)));
 
 		this.progressBar = new JProgressBar();
 		progressBar.setStringPainted(true);
 		progressBar.setString("Ready");
 		mainPanel.add(progressBar);
 
-		mainPanel.setDropTarget(new DropTarget() {
+		acceptBombDrops(mainPanel);
+
+		return mainPanel;
+	}
+
+	@SuppressWarnings("serial")
+	private void acceptBombDrops(Component component) {
+		component.setDropTarget(new DropTarget() {
 			@SuppressWarnings("unchecked")
 			public synchronized void drop(DropTargetDropEvent evt) {
 				try {
 					evt.acceptDrop(DnDConstants.ACTION_COPY);
 					List<File> droppedFiles = (List<File>) evt.getTransferable()
 							.getTransferData(DataFlavor.javaFileListFlavor);
-					new Thread(null, () -> {
-						OhMyGod.this.bake(droppedFiles.get(0).toString());
-					}, "Baked Potato!").start();
+					startToBakeInSeparateThread(Optional.of(droppedFiles.get(0).toString()), Optional.empty());
 					evt.dropComplete(true);
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
 			}
 		});
-
-		return mainPanel;
 	}
 
 	private JPanel createOptionsPanel() {
@@ -227,7 +283,7 @@ public class OhMyGod {
 		optionsPanel.setLayout(new BoxLayout(optionsPanel, BoxLayout.Y_AXIS));
 
 		optionsPanel.add(new JLabel("File extraction - ➕ Include RegEx (one per line):"));
-		this.textExtractIncludeRegex = new JTextArea(".*META-INF.+\n.*WEB-INF.+\n.+gk.+");
+		this.textExtractIncludeRegex = new JTextArea(".*");
 		textExtractIncludeRegex.setAlignmentX(0);
 		optionsPanel.add(textExtractIncludeRegex);
 		optionsPanel.add(Box.createRigidArea(new Dimension(10, 5)));

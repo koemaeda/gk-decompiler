@@ -11,6 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -19,8 +21,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -52,15 +56,20 @@ public class Potato {
 	}
 
 	public void bake() throws Exception {
+		startNewLogFile();
+
 		// Create a CSV file with the complete file list
 		createCsvFile();
 
 		// Extract JAR recursively, dumping files to dest. and classes to memory
 		extract();
 
+		System.gc(); // take a small breath
+
 		// Decompile all classes in memory using multiple threads
 		decompile();
 
+		log.info("Done!");
 		cleanup();
 	}
 
@@ -94,6 +103,12 @@ public class Potato {
 				}
 			}
 		}
+
+		// Clean-up
+		for (ZipInputStream stream : this.openZipStreams) {
+			stream.close();
+		}
+		this.openZipStreams.clear();
 	}
 
 	void decompile() throws Exception {
@@ -128,6 +143,9 @@ public class Potato {
 			}
 		});
 		progressThread.interrupt();
+
+		// Clean-up
+		this.classFiles.clear();
 	}
 
 	void handleZipEntry(String parentName, InputStream stream, ZipEntry entry) throws Exception {
@@ -177,7 +195,7 @@ public class Potato {
 			}
 		}
 
-		addCsvEntry(entry.getName(), fullEntryName, className, mustExtract, mustDecompile);
+		addCsvEntry(entry.getName(), parentName, mustExtract, mustDecompile);
 	}
 
 	void extractFile(String relativePath, InputStream inStream) throws IOException {
@@ -191,6 +209,10 @@ public class Potato {
 		try (FileChannel channel = FileChannel.open(destFilePath, StandardOpenOption.CREATE,
 				StandardOpenOption.WRITE)) {
 			channel.transferFrom(Channels.newChannel(inStream), 0, Long.MAX_VALUE);
+		}
+		catch (Exception e) {
+			// File is locked or something...
+			log.log(Level.SEVERE, "Failed to save file: " + relativePath, e);
 		}
 
 		if (log.isLoggable(Level.FINE))
@@ -220,18 +242,32 @@ public class Potato {
 		// Create a CSV file with the complete file list
 		this.csvFile = FileChannel.open(Paths.get(destinationPath, "file_list_" + rootLocalName + ".csv"),
 				StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-		this.csvFile.write(ByteBuffer
-				.wrap("Local Path,Full Path,Class Name,Extracted?,Decompiled?\n".getBytes(StandardCharsets.UTF_8)));
+		this.csvFile.write(
+				ByteBuffer.wrap("Path,Archive (parent),Extracted?,Decompiled?\r\n".getBytes(StandardCharsets.UTF_8)));
 	}
 
-	void addCsvEntry(String relativePath, String fullPath, String className, boolean extracted, boolean decompiled)
-			throws IOException {
+	void addCsvEntry(String relativePath, String parentName, boolean extracted, boolean decompiled) throws IOException {
 		// Wrap every column in double-quotes, also escaping double-quotes
 		if (this.csvFile != null && this.csvFile.isOpen()) {
-			String line = Arrays.asList(relativePath, fullPath, className, extracted ? "X" : "", decompiled ? "X" : "")
-					.stream().map(raw -> "\"" + raw.replaceAll("\"", "\\\"") + "\"").collect(Collectors.joining(","));
+			String line = Arrays.asList(relativePath, parentName, extracted ? "X" : "", decompiled ? "X" : "").stream()
+					.map(raw -> "\"" + raw.replaceAll("\"", "\\\"") + "\"").collect(Collectors.joining(",")) + "\r\n";
 			this.csvFile.write(ByteBuffer.wrap(line.getBytes(StandardCharsets.UTF_8)));
 		}
+	}
+
+	void startNewLogFile() throws IOException {
+		// Remove any existing file handlers
+		Arrays.stream(Logger.getLogger("").getHandlers()) // R
+				.filter(handler -> handler instanceof FileHandler) //
+				.forEach(handler -> Logger.getLogger("").removeHandler(handler));
+
+		// Add the new file handler
+		String currDateTime = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now());
+		Path newFilePath = Paths.get(this.destinationPath, "gk-decompiler-" + currDateTime + ".log");
+		FileHandler newHandler = new FileHandler(newFilePath.toString());
+		newHandler.setFormatter(new SimpleFormatter());
+		newHandler.setLevel(Level.ALL);
+		Logger.getLogger("ninja.abap").addHandler(newHandler);
 	}
 
 	private void notifyProgress(int percent, String text) {
@@ -242,17 +278,7 @@ public class Potato {
 		if (this.csvFile != null && this.csvFile.isOpen())
 			this.csvFile.close();
 
-		this.classFiles.clear();
-		this.classFiles = null;
-
-		for (ZipInputStream stream : this.openZipStreams) {
-			stream.close();
-		}
-		this.openZipStreams.clear();
-		this.openZipStreams = null;
-		
 		this.progressListeners.clear();
-		this.progressListeners = null;
 
 		System.gc();
 	}

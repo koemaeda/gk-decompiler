@@ -15,6 +15,7 @@ import java.util.Arrays;
 import javax.swing.JTextArea;
 
 public class PeppermintLeaf extends JTextArea {
+	private static final long serialVersionUID = 1L;
 
 	private final String[] rowTexts;
 
