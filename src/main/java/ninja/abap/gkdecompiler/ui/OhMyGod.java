@@ -60,7 +60,7 @@ public class OhMyGod {
 			+ "                 /_/                   /___/         ";
 
 	private static final String appName = "GK Decompiler";
-	private static final String appVersion = "v1.2";
+	private static final String appVersion = "v1.3";
 
 	private JButton bakeButton;
 	private JProgressBar progressBar;
@@ -295,7 +295,7 @@ public class OhMyGod {
 		optionsPanel.add(Box.createRigidArea(new Dimension(10, 5)));
 
 		optionsPanel.add(new JLabel("Class decompilation - ➕ Include RegEx (one per line):"));
-		this.textDecompileIncludeRegex = new JTextArea(".+gk.+");
+		this.textDecompileIncludeRegex = new JTextArea(".*gk.+");
 		textDecompileIncludeRegex.setAlignmentX(0);
 		optionsPanel.add(textDecompileIncludeRegex);
 		optionsPanel.add(Box.createRigidArea(new Dimension(10, 5)));

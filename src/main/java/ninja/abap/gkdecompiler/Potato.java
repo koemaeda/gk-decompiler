@@ -200,7 +200,12 @@ public class Potato {
 
 	void extractFile(String relativePath, InputStream inStream) throws IOException {
 		Path destFilePath = Paths.get(this.destinationPath, relativePath);
-		Files.createDirectories(destFilePath.getParent());
+		try {
+			Files.createDirectories(destFilePath.getParent());
+		} catch (Exception e) {
+			log.log(Level.SEVERE, "Failed to create directory: " + destFilePath.getParent(), e);
+			return;
+		}
 
 		// We cannot use a MappedByteBuffer because ZipInputStream does not provide
 		// entry file sizes
@@ -213,6 +218,7 @@ public class Potato {
 		catch (Exception e) {
 			// File is locked or something...
 			log.log(Level.SEVERE, "Failed to save file: " + relativePath, e);
+			return;
 		}
 
 		if (log.isLoggable(Level.FINE))
